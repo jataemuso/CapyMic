@@ -22,8 +22,14 @@ from engine import (
     BUFFER_SIZE_OPTIONS,
     SAMPLE_RATE_OPTIONS,
     CHANNEL_OPTIONS,
+    resource_path,
 )
 import config
+
+# Caminho do ícone (.ico) usado na janela e na barra de tarefas.
+# resource_path garante que funcione tanto rodando como .py quanto
+# dentro do .exe compilado pelo PyInstaller.
+ICON_PATH = resource_path("assets/icon.ico")
 
 
 def create_tray_image(color: str):
@@ -33,21 +39,39 @@ def create_tray_image(color: str):
     return image
 
 
-class DeepFilterApp:
+class CapyMicApp:
     def __init__(self, root: tk.Tk):
         self.root = root
         self.engine = AudioEngine()
         self.tray_icon = None
 
-        root.title("DeepFilter - Configurações")
+        root.title("CapyMic - Configurações")
         root.resizable(False, False)
         root.protocol("WM_DELETE_WINDOW", self.on_close_window)
+        self._set_window_icon()
 
         self.saved_settings = config.load_settings()
 
         self._build_ui()
         self._load_devices()
         self._apply_saved_settings()
+
+    # ------------------------------------------------------------------ #
+    # Ícone da janela
+    # ------------------------------------------------------------------ #
+    def _set_window_icon(self):
+        """
+        Troca o ícone padrão do Tkinter (a "folhinha") pelo ícone do app.
+        iconbitmap espera um arquivo .ico e funciona de forma nativa no
+        Windows (título da janela + barra de tarefas).
+        """
+        try:
+            self.root.iconbitmap(ICON_PATH)
+        except Exception:
+            # Se o arquivo não existir ou o SO não suportar .ico
+            # (ex.: Linux/Mac), simplesmente mantém o ícone padrão
+            # em vez de travar o app.
+            pass
 
     # ------------------------------------------------------------------ #
     # UI
@@ -238,7 +262,7 @@ class DeepFilterApp:
             pystray.MenuItem("Abrir configurações", self.restore_from_tray),
             pystray.MenuItem("Encerrar", self.quit_from_tray),
         )
-        self.tray_icon = pystray.Icon("DeepFilter", image, "DeepFilter", menu)
+        self.tray_icon = pystray.Icon("CapyMic", image, "CapyMic", menu)
         self.tray_icon.run_detached()
 
     def restore_from_tray(self, icon=None, item=None):
@@ -269,7 +293,7 @@ class DeepFilterApp:
 
 def main():
     root = tk.Tk()
-    DeepFilterApp(root)
+    CapyMicApp(root)
     root.mainloop()
 
 
@@ -278,18 +302,27 @@ if __name__ == "__main__":
 
 
 # ---------------------------------------------------------------------- #
-# Como compilar em um único .exe (Windows), incluindo o plugin VST3:
+# Como compilar em um único .exe (Windows), incluindo o plugin VST3 e os
+# assets (ícone):
 #
-#   pyinstaller --onefile --windowed --name DeepFilterApp ^
+#   pyinstaller --onefile --windowed --name CapyMic ^
+#       --icon "assets/icon.ico" ^
 #       --add-data "PluginDeepFilter;PluginDeepFilter" ^
+#       --add-data "assets;assets" ^
 #       app.py
 #
 # Notas:
 # - O "--add-data ORIGEM;DESTINO" usa ";" no Windows (no Linux/Mac seria ":").
-# - Isso copia toda a pasta PluginDeepFilter (incluindo o .vst3) para dentro
-#   do executável; em tempo de execução, engine.resource_path() localiza
+# - "--icon assets/icon.ico" define o ícone do PRÓPRIO ARQUIVO .exe (o que
+#   aparece no Explorer, atalhos, etc.).
+# - "--add-data assets;assets" copia a pasta assets/ (incluindo icon.ico e
+#   icon.png) para dentro do executável; em tempo de execução, é isso que
+#   permite ao root.iconbitmap() trocar o ícone da JANELA em si — sem essa
+#   linha, o app roda normalmente, mas mantém o ícone padrão do Tkinter.
+# - Isso também copia toda a pasta PluginDeepFilter (incluindo o .vst3) para
+#   dentro do executável; em tempo de execução, engine.resource_path() localiza
 #   esses arquivos extraídos na pasta temporária do PyInstaller.
-# - engine.py, config.py e main.py NÃO precisam ser incluídos manualmente: o
+# - engine.py e config.py NÃO precisam ser incluídos manualmente: o
 #   PyInstaller já rastreia os imports (import engine / import config)
 #   automaticamente a partir de app.py.
 # - Use --windowed para não abrir um console junto com a interface gráfica.
