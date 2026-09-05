@@ -1,33 +1,52 @@
 import time
+import pystray
+from PIL import Image, ImageDraw
 from pedalboard import Pedalboard, load_plugin
 from pedalboard.io import AudioStream
 
+# Variável para controlar quando fechar o programa
+running = True
+
+def create_image():
+    # Desenha um pequeno quadrado verde para o ícone
+    image = Image.new('RGB', (64, 64), color='black')
+    d = ImageDraw.Draw(image)
+    d.rectangle((16, 16, 48, 48), fill='green')
+    return image
+
+def on_quit(icon, item):
+    global running
+    running = False # Avisa o loop do áudio para parar
+    icon.stop()     # Remove o ícone da bandeja
+
 def main():
+    global running
+    
     MIC_NAME = "Microphone (Realtek(R) Audio)"
-
-    #Virutal Audio Cable
+    # Descomente a linha do Voicemeeter se for usar ele
     CABLE_NAME = "CABLE Input (VB-Audio Virtual Cable)"
-
-    #voicemetter
     # CABLE_NAME = "Voicemeeter Input (VB-Audio Voicemeeter VAIO)"
+
+    # 1. Cria o ícone na bandeja em modo "Desanexado" (Não trava o áudio)
+    image = create_image()
+    menu = pystray.Menu(pystray.MenuItem('Encerrar DeepFilter', on_quit))
+    icon = pystray.Icon("DeepFilter", image, "Filtro Ativo", menu)
+    icon.run_detached() 
 
     # 2. Carrega a inteligência artificial (VST)
     try:
-        print("Carregando modelo do DeepFilterNet...")
-        # Aponta diretamente para a versão VST3 extraída
         plugin = load_plugin("./PluginDeepFilter/DeepFilterNet-v2026.4.2.1-windows/VST3/DeepFilterNet.vst3/Contents/x86_64-win/DeepFilterNet.vst3")
         board = Pedalboard([plugin])
     except Exception as e:
-        print(f"Erro ao carregar a DLL: {e}")
+        icon.stop()
         return
 
-   # 3. Inicia o stream de áudio em tempo real
+    # 3. Inicia o stream de áudio na Thread Principal (Desempenho máximo)
     try:
-        # Forçamos 48kHz (exigência do DeepFilterNet) e 1 canal tanto na entrada quanto na saída
         with AudioStream(
             input_device_name=MIC_NAME,
             output_device_name=CABLE_NAME,
-            buffer_size=512, #512, 256 ou 128
+            buffer_size=512,
             num_input_channels=1,
             num_output_channels=1,
             sample_rate=48000 
@@ -35,20 +54,12 @@ def main():
             
             stream.plugins = board
             
-            print(f"\n[SUCESSO] Roteamento Ativo (Modo Mono / 48kHz)!")
-            print(f"🎤 Entrada física: {MIC_NAME}")
-            print(f"🎧 Saída virtual: {CABLE_NAME}")
-            print("\nProcessando áudio em tempo real... (Pressione Ctrl+C para encerrar)")
-            
-            # Mantém o script rodando
-            while True:
-                time.sleep(1)
+            # Mantém o script rodando limpo até você clicar em "Encerrar"
+            while running:
+                time.sleep(0.5)
                 
-    except KeyboardInterrupt:
-        print("\n[ENCERRADO] Processamento finalizado pelo usuário.")
-    except Exception as e:
-        print(f"\n[ERRO] Falha no stream de áudio: {e}")
-        print("Dica: Verifique se os nomes dos dispositivos coincidem com o comando `python -m sounddevice`.")
+    except Exception:
+        pass
 
 if __name__ == "__main__":
     main()
