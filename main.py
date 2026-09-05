@@ -4,8 +4,12 @@ from pedalboard.io import AudioStream
 
 def main():
     MIC_NAME = "Microphone (Realtek(R) Audio)"
-    
+
+    #Virutal Audio Cable
     CABLE_NAME = "CABLE Input (VB-Audio Virtual Cable)"
+
+    #voicemetter
+    # CABLE_NAME = "Voicemeeter Input (VB-Audio Voicemeeter VAIO)"
 
     # 2. Carrega a inteligência artificial (VST)
     try:
@@ -17,19 +21,21 @@ def main():
         print(f"Erro ao carregar a DLL: {e}")
         return
 
-    # 3. Inicia o stream de áudio em tempo real
+   # 3. Inicia o stream de áudio em tempo real
     try:
-        # O buffer_size de 512 é um bom equilíbrio entre baixa latência e estabilidade. 
-        # Se o áudio "pipocar", aumente para 1024.
+        # Forçamos 48kHz (exigência do DeepFilterNet) e 1 canal tanto na entrada quanto na saída
         with AudioStream(
             input_device_name=MIC_NAME,
             output_device_name=CABLE_NAME,
-            buffer_size=512 
+            buffer_size=512, #512, 256 ou 128
+            num_input_channels=1,
+            num_output_channels=1,
+            sample_rate=48000 
         ) as stream:
             
             stream.plugins = board
             
-            print(f"\n[SUCESSO] Roteamento Ativo!")
+            print(f"\n[SUCESSO] Roteamento Ativo (Modo Mono / 48kHz)!")
             print(f"🎤 Entrada física: {MIC_NAME}")
             print(f"🎧 Saída virtual: {CABLE_NAME}")
             print("\nProcessando áudio em tempo real... (Pressione Ctrl+C para encerrar)")
