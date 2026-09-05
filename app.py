@@ -23,6 +23,7 @@ from engine import (
     SAMPLE_RATE_OPTIONS,
     CHANNEL_OPTIONS,
 )
+import config
 
 
 def create_tray_image(color: str):
@@ -42,8 +43,11 @@ class DeepFilterApp:
         root.resizable(False, False)
         root.protocol("WM_DELETE_WINDOW", self.on_close_window)
 
+        self.saved_settings = config.load_settings()
+
         self._build_ui()
         self._load_devices()
+        self._apply_saved_settings()
 
     # ------------------------------------------------------------------ #
     # UI
@@ -73,7 +77,7 @@ class DeepFilterApp:
 
         # Buffer size
         ttk.Label(frame, text="Buffer:").grid(row=4, column=0, sticky="w")
-        self.buffer_var = tk.IntVar(value=512)
+        self.buffer_var = tk.IntVar(value=self.saved_settings.get("buffer_size", 512))
         self.buffer_combo = ttk.Combobox(
             frame,
             textvariable=self.buffer_var,
@@ -85,7 +89,7 @@ class DeepFilterApp:
 
         # Sample rate
         ttk.Label(frame, text="Sample rate:").grid(row=5, column=0, sticky="w")
-        self.samplerate_var = tk.IntVar(value=48000)
+        self.samplerate_var = tk.IntVar(value=self.saved_settings.get("sample_rate", 48000))
         self.samplerate_combo = ttk.Combobox(
             frame,
             textvariable=self.samplerate_var,
@@ -97,7 +101,7 @@ class DeepFilterApp:
 
         # Channels
         ttk.Label(frame, text="Canais:").grid(row=6, column=0, sticky="w")
-        self.channels_var = tk.IntVar(value=1)
+        self.channels_var = tk.IntVar(value=self.saved_settings.get("channels", 1))
         self.channels_combo = ttk.Combobox(
             frame,
             textvariable=self.channels_var,
@@ -153,6 +157,30 @@ class DeepFilterApp:
         if outputs and not self.output_device_var.get():
             self.output_device_var.set(outputs[0])
 
+    def _apply_saved_settings(self):
+        """
+        Se o dispositivo salvo anteriormente ainda existir na máquina,
+        seleciona ele. Caso contrário, mantém o que já foi escolhido por
+        padrão em _load_devices (ex.: primeiro da lista).
+        """
+        saved_input = self.saved_settings.get("input_device", "")
+        saved_output = self.saved_settings.get("output_device", "")
+
+        if saved_input and saved_input in self.input_combo["values"]:
+            self.input_device_var.set(saved_input)
+
+        if saved_output and saved_output in self.output_combo["values"]:
+            self.output_device_var.set(saved_output)
+
+    def _current_settings(self) -> dict:
+        return {
+            "input_device": self.input_device_var.get(),
+            "output_device": self.output_device_var.get(),
+            "buffer_size": int(self.buffer_var.get()),
+            "sample_rate": int(self.samplerate_var.get()),
+            "channels": int(self.channels_var.get()),
+        }
+
     # ------------------------------------------------------------------ #
     # Ações
     # ------------------------------------------------------------------ #
@@ -185,6 +213,7 @@ class DeepFilterApp:
     def _on_started_ok(self):
         self.status_var.set("Rodando")
         self.stop_button.config(state="normal")
+        config.save_settings(self._current_settings())
 
     def _on_started_fail(self, error):
         self.status_var.set("Erro")
@@ -233,6 +262,7 @@ class DeepFilterApp:
             self._shutdown()
 
     def _shutdown(self):
+        config.save_settings(self._current_settings())
         self.engine.stop()
         self.root.destroy()
 
@@ -259,7 +289,8 @@ if __name__ == "__main__":
 # - Isso copia toda a pasta PluginDeepFilter (incluindo o .vst3) para dentro
 #   do executável; em tempo de execução, engine.resource_path() localiza
 #   esses arquivos extraídos na pasta temporária do PyInstaller.
-# - engine.py e main.py NÃO precisam ser incluídos manualmente: o PyInstaller
-#   já rastreia os imports (import engine) automaticamente a partir de app.py.
+# - engine.py, config.py e main.py NÃO precisam ser incluídos manualmente: o
+#   PyInstaller já rastreia os imports (import engine / import config)
+#   automaticamente a partir de app.py.
 # - Use --windowed para não abrir um console junto com a interface gráfica.
 # ---------------------------------------------------------------------- #
